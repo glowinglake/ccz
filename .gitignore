@@ -1,0 +1,5 @@
+bin/
+include/
+pyvenv.cfg
+gameEngine/__pycache__/
+path/
