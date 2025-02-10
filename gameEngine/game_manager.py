@@ -197,6 +197,12 @@ class GameManager:
                 else:
                     self.message = "Invalid attack target."
             # A unit is selected, show menu if the same cell is clicked, or attempt to move
+            elif self.selected_unit["hasMoved"] == self.ACTION_STATE_MOVED_NEED_TO_CONFRIM:
+                # unit has moved and waiting to execute attack/cast/... 
+                # no-op for any left click. keep the menu open
+                self.context_menu["visible"] = True
+                self.message = "Waiting for player to confirm action."
+                pass
             elif self.selected_unit["x"] == grid_x and self.selected_unit["y"] == grid_y:
                 can_attack = self.has_adjacent_enemy(self.selected_unit)
                 # Show menu near the mouse click
