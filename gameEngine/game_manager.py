@@ -313,6 +313,13 @@ class GameManager:
                 return False
         return True
 
+    def check_chapter_completion(self):
+        """Check if the current chapter is completed by checking if all enemy units are defeated."""
+        for u in self.grid_units:
+            if u["side"] == "enemy" and u["HP"] > 0:
+                return False
+        return True
+
     def on_chapter_victory(self):
         """Simulates beating the current chapter."""
         chapter_id = self.game_state.currentChapterId

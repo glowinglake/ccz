@@ -87,12 +87,8 @@ def main():
             # --- PLAY Mode: normal gameplay (overworld) ---
             elif mode == MODE_PLAY and manager is not None:
                 if event.type == pygame.KEYDOWN:
-                    # Press 'v' to simulate victory
-                    if event.key == pygame.K_v:
-                        manager.on_chapter_victory()
-
                     # Press 's' to switch to SAVE mode
-                    elif event.key == pygame.K_s:
+                    if event.key == pygame.K_s:
                         typed_save_name = ""
                         mode = MODE_SAVE
 
@@ -140,6 +136,11 @@ def main():
 
                             # Otherwise it's a grid click
                             manager.handle_grid_click((mouse_x, mouse_y))
+                        # check game victory or defeat condition
+                        if manager.check_chapter_completion():
+                            manager.on_chapter_victory()
+                            mode = MODE_PLAY  # Return to play mode
+                            continue
                     if event.button == 3:
                         # right click cancels menu and resets selected unit
                         if manager:
