@@ -33,6 +33,7 @@ class GameManager:
         }
 
         self.attackable_tiles = []       # The coordinates of adjacent enemies for the selected unit**
+        self.attackable_tiles_drawing = []
 
         self.ACTION_STATE_NOT_YET = "NOT_YET"
         self.ACTION_STATE_SELECTED = "SELECTED"
@@ -90,7 +91,9 @@ class GameManager:
             unit_copy["side"] = "player"
             # Add HP, attack, etc. if missing
             unit_copy.setdefault("HP", 20)
+            unit_copy.setdefault("MP", 10)
             unit_copy.setdefault("attack", 5)
+            unit_copy.setdefault("defense", 2)
             # Track if unit has moved this turn
             unit_copy["hasMoved"] = self.ACTION_STATE_NOT_YET
             self.grid_units.append(unit_copy)
@@ -145,6 +148,7 @@ class GameManager:
         self.context_menu["y"] = pixel_y
         self.context_menu["attackEnabled"] = can_attack
         self.attackable_tiles = []
+        self.attackable_tiles_drawing = []
 
     def handle_grid_click(self, mouse_pos):
         # Convert pixel to grid coords
@@ -185,13 +189,14 @@ class GameManager:
                             self.attack_unit(defender, self.selected_unit)
                     self.context_menu["visible"] = False
                     self.attackable_tiles = []
+                    self.attackable_tiles_drawing = []
                     self.message = f"{self.selected_unit['unitId']} finished attack."
                     self.selected_unit["hasMoved"] = self.ACTION_STATE_DONE                    
                     self.selected_unit = None
                     self.selected_unit_before_action = None
                 else:
                     self.message = "Invalid attack target."
-            # A unit is selected; # show menu if the same cell is clicked, or attempt to move
+            # A unit is selected, show menu if the same cell is clicked, or attempt to move
             elif self.selected_unit["x"] == grid_x and self.selected_unit["y"] == grid_y:
                 can_attack = self.has_adjacent_enemy(self.selected_unit)
                 # Show menu near the mouse click
@@ -240,9 +245,11 @@ class GameManager:
             return
         self.selected_unit["hasMoved"] = self.ACTION_STATE_ATTACK_NEED_TO_CONFRIM
         self.attackable_tiles = []
+        self.attackable_tiles_drawing = []
         x, y = self.selected_unit["x"], self.selected_unit["y"]
         # find adjacent enemy
         adjacent = [(x+1,y),(x-1,y),(x,y+1),(x,y-1)]
+        self.attackable_tiles_drawing = adjacent
         for (ex, ey) in adjacent:
             enemy = self.get_unit_at(ex, ey)
             if enemy and enemy["side"] != self.selected_unit["side"]:
