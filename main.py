@@ -139,12 +139,17 @@ def main():
                             # Otherwise it's a grid click
                             manager.handle_grid_click((mouse_x, mouse_y))
                     if event.button == 3:
-                        # right click cancels menu
-                        if manager and manager.isAttacking:
-                            manager.isAttacking = False
+                        # right click cancels menu and resets selected unit
+                        if manager:
+                            if manager.selected_unit:
+                                manager.selected_unit.clear()
+                                manager.selected_unit.update(manager.selected_unit_before_action)
+                                manager.selected_unit_before_action = None
+                                manager.selected_unit = None
                             manager.attackable_tiles = []
+                            manager.reachable_tiles = []
                             manager.context_menu["visible"] = False
-                            manager.message = "Attack cancelled by right-click."
+                            manager.message = "Pop-up menu or attack status cancelled by right-click."
                         continue
 
         # --- RENDER / DRAW ---
@@ -163,7 +168,6 @@ def main():
 
         # 2) Draw the status bar (always on top)
         draw_status_bar(screen, font, manager, mode)
-        
         pygame.display.flip()
 
     pygame.quit()
@@ -222,10 +226,16 @@ def draw_grid_mode(screen, manager, font):
     # You can scale or position the grid as needed in your design
     # 1. Highlight reachable tiles
     highlight_color = (0, 0, 255, 80)  # RGBA with some alpha
+    attack_highlight_color = (150, 0, 0, 80)  # RGBA with some alpha
     highlight_surf = pygame.Surface((tile_size, tile_size), pygame.SRCALPHA)
     highlight_surf.fill(highlight_color)
     for (rx, ry) in manager.reachable_tiles:
         screen.blit(highlight_surf, (rx * tile_size, ry * tile_size))
+
+    attack_highlight_surf = pygame.Surface((tile_size, tile_size), pygame.SRCALPHA)
+    attack_highlight_surf.fill(attack_highlight_color)
+    for (rx, ry) in manager.attackable_tiles:
+        screen.blit(attack_highlight_surf, (rx * tile_size, ry * tile_size))
 
     # Draw each unit
     for unit in manager.grid_units:  
@@ -233,9 +243,15 @@ def draw_grid_mode(screen, manager, font):
         x_px = unit["x"] * tile_size
         y_px = unit["y"] * tile_size
         if unit["side"] == "player":
-            color = (0, 255, 0)
+            if unit["hasMoved"] == manager.ACTION_STATE_NOT_YET:
+                color = (0, 255, 0)
+            else:
+                color = (1, 150, 32)            
         else:
-            color = (255, 0, 0)
+            if unit["hasMoved"] == manager.ACTION_STATE_NOT_YET:
+                color = (255, 0, 0)
+            else:
+                color = (139, 0, 0)
         pygame.draw.rect(screen, color, (x_px, y_px, tile_size, tile_size))
 
     # Overlay some textual info: e.g. "Press ESC to exit"
@@ -318,8 +334,8 @@ def clicked_popup_menu(manager, mx, my):
     if not manager.context_menu["visible"]:
         return False
 
-    # Suppose we define the menu 80x50 in size
-    menu_w, menu_h = 80, 50
+    # Suppose we define the menu 80x70 in size
+    menu_w, menu_h = 80, 70
     px, py = manager.context_menu["x"], manager.context_menu["y"]
     # Adjust if we want to ensure it's fully on screen, etc.
 
@@ -339,22 +355,28 @@ def clicked_popup_menu(manager, mx, my):
             manager.start_attack_mode()
         else:
             manager.message = "Attack is disabled."
-    else:
+    elif py+25 <= my < py+50:
         # Cast area - not implemented
         manager.message = "Cast action not implemented."
+    else:
+        # Stay area - not implemented
+        # manager.message = "Stay action not implemented."
+        manager.handle_stay_action()
 
     # Hide menu after a choice
     manager.context_menu["visible"] = False
     return True
 
 def draw_popup_menu(screen, manager, font):
+    if not manager.context_menu["visible"]:
+        return
     """
     Renders the small pop-up at manager.context_menu's x,y.
     'Attack' (top) is grey if attackEnabled=False, 'Cast' (bottom).
     """
     px = manager.context_menu["x"]
     py = manager.context_menu["y"]
-    menu_w, menu_h = 80, 50
+    menu_w, menu_h = 80, 70
 
     # Draw background
     pygame.draw.rect(screen, (60,60,60), (px, py, menu_w, menu_h))
@@ -367,6 +389,10 @@ def draw_popup_menu(screen, manager, font):
     # Cast option (just a placeholder)
     cast_text = font.render("Cast", True, (200,200,200))
     screen.blit(cast_text, (px+10, py+30))
+
+    # Stay option (just a placeholder)
+    stay_text = font.render("Stay", True, (200,200,200))
+    screen.blit(stay_text, (px+10, py+50))
 
 if __name__ == "__main__":
     main()

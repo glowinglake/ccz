@@ -32,8 +32,15 @@ class GameManager:
             "attackEnabled": False  # If Attack is greyed out or not
         }
 
-        self.isAttacking = False       # True if we're currently selecting an enemy tile to attack
         self.attackable_tiles = []       # The coordinates of adjacent enemies for the selected unit**
+
+        self.ACTION_STATE_NOT_YET = "NOT_YET"
+        self.ACTION_STATE_SELECTED = "SELECTED"
+        self.ACTION_STATE_MOVED_NEED_TO_CONFRIM = "MOVED_NEED_TO_CONFRIM" # pop-up menu open
+        self.ACTION_STATE_ATTACK_NEED_TO_CONFRIM = "ATTACK_NEED_TO_CONFRIM"
+        self.ACTION_STATE_CAST_NEED_TO_CONFIRM = "CAST_NEED_TO_CONFIRM" # cast sub menu open
+        self.ACTION_STATE_CAST_NEED_TO_CHOOSE_TARGET = "CAST_NEED_TO_CHOOSE_TARGET" 
+        self.ACTION_STATE_DONE = "DONE"
 
     def start_chapter(self):
         """Load the current chapter and trigger any 'onStart' events."""
@@ -85,7 +92,7 @@ class GameManager:
             unit_copy.setdefault("HP", 20)
             unit_copy.setdefault("attack", 5)
             # Track if unit has moved this turn
-            unit_copy["hasMoved"] = False  
+            unit_copy["hasMoved"] = self.ACTION_STATE_NOT_YET
             self.grid_units.append(unit_copy)
 
         enemy_units = grid_info.get("enemyUnits", [])
@@ -94,9 +101,11 @@ class GameManager:
             unit_copy["side"] = "enemy"
             unit_copy.setdefault("HP", 15)
             unit_copy.setdefault("attack", 3)
+            unit_copy["hasMoved"] = self.ACTION_STATE_NOT_YET
             self.grid_units.append(unit_copy)
 
         self.selected_unit = None
+        self.selected_unit_before_action = None
         self.reachable_tiles = []
         self.message = f"Entered Grid Mode for Chapter {chapter_id}"
     
@@ -115,7 +124,7 @@ class GameManager:
             # Reset enemy hasMoved flags
             for u in self.grid_units:
                 if u["side"] == "enemy":
-                    u["hasMoved"] = False
+                    u["hasMoved"] = self.ACTION_STATE_NOT_YET
         else:
             # We end Enemy Turn -> go to next Player Turn
             self.isPlayerTurn = True
@@ -124,7 +133,7 @@ class GameManager:
             # Reset player hasMoved flags
             for u in self.grid_units:
                 if u["side"] == "player":
-                    u["hasMoved"] = False
+                    u["hasMoved"] = self.ACTION_STATE_NOT_YET
 
     def show_context_menu(self, pixel_x, pixel_y, can_attack):
         """
@@ -135,7 +144,6 @@ class GameManager:
         self.context_menu["x"] = pixel_x
         self.context_menu["y"] = pixel_y
         self.context_menu["attackEnabled"] = can_attack
-        self.isAttacking = False
         self.attackable_tiles = []
 
     def handle_grid_click(self, mouse_pos):
@@ -143,24 +151,6 @@ class GameManager:
         grid_x = mouse_pos[0] // self.tile_size
         grid_y = mouse_pos[1] // self.tile_size
         
-        if self.isAttacking:
-            # Check if the click is on an attackable tile
-            if (grid_x, grid_y) in self.attackable_tiles:
-                # Perform the attack
-                defender = self.get_unit_at(grid_x, grid_y)
-                if defender:
-                    self.attack_unit(self.selected_unit, defender)
-                    if defender["HP"] > 0:
-                        self.attack_unit(defender, self.selected_unit)
-                self.message = f"{self.selected_unit['unitId']} finished attack."
-            else:
-                self.message = "Attack cancelled."
-            # End attack mode, close popup
-            self.isAttacking = False
-            self.context_menu["visible"] = False
-            self.attackable_tiles = []
-            return  # Stop processing further
-
         # If the popup menu was open, close it (unless user clicked inside it - see main.py)
         if self.context_menu["visible"]:
             self.context_menu["visible"] = False
@@ -169,10 +159,12 @@ class GameManager:
         if not self.selected_unit:
             # Attempt to select a unit belonging to the side whose turn it is
             clicked_unit = self.get_unit_at(grid_x, grid_y)
-            if clicked_unit and not clicked_unit["hasMoved"]:
+            if clicked_unit and clicked_unit["hasMoved"] == self.ACTION_STATE_NOT_YET:
                 if (self.isPlayerTurn and clicked_unit["side"] == "player") \
                    or (not self.isPlayerTurn and clicked_unit["side"] == "enemy"):
+                    self.selected_unit_before_action = dict(clicked_unit)
                     self.selected_unit = clicked_unit
+                    self.selected_unit["hasMoved"] = self.ACTION_STATE_SELECTED
                     move_range = 5
                     self.reachable_tiles = self.calculate_reachable_tiles((clicked_unit["x"], clicked_unit["y"]), move_range)
                     self.message = f"Selected unit {clicked_unit['unitId']}"
@@ -181,27 +173,44 @@ class GameManager:
             else:
                 self.message = "No valid unit selected."
         else:
-            # A unit is selected; show menu if the same cell is clicked, or attempt to move
-            if self.selected_unit["x"] == grid_x and self.selected_unit["y"] == grid_y:
+            if self.selected_unit["hasMoved"] == self.ACTION_STATE_ATTACK_NEED_TO_CONFRIM:
+                # Check if the click is on an attackable tile
+                if (grid_x, grid_y) in self.attackable_tiles:
+                    self.selected_unit["hasMoved"] = self.ACTION_STATE_DONE
+                    # Perform the attack
+                    defender = self.get_unit_at(grid_x, grid_y)
+                    if defender:
+                        self.attack_unit(self.selected_unit, defender)
+                        if defender["HP"] > 0:
+                            self.attack_unit(defender, self.selected_unit)
+                    self.context_menu["visible"] = False
+                    self.attackable_tiles = []
+                    self.message = f"{self.selected_unit['unitId']} finished attack."
+                    self.selected_unit["hasMoved"] = self.ACTION_STATE_DONE                    
+                    self.selected_unit = None
+                    self.selected_unit_before_action = None
+                else:
+                    self.message = "Invalid attack target."
+            # A unit is selected; # show menu if the same cell is clicked, or attempt to move
+            elif self.selected_unit["x"] == grid_x and self.selected_unit["y"] == grid_y:
                 can_attack = self.has_adjacent_enemy(self.selected_unit)
                 # Show menu near the mouse click
                 self.show_context_menu(mouse_pos[0], mouse_pos[1], can_attack)
+                self.selected_unit["hasMoved"] = self.ACTION_STATE_MOVED_NEED_TO_CONFRIM
                 self.message = f"Showing menu for unit {self.selected_unit['unitId']}"
             elif (grid_x, grid_y) in self.reachable_tiles:
                 self.selected_unit["x"] = grid_x
                 self.selected_unit["y"] = grid_y
-                self.selected_unit["hasMoved"] = True
+
+                can_attack = self.has_adjacent_enemy(self.selected_unit)
+                # Show menu near the mouse click
+                self.show_context_menu(mouse_pos[0], mouse_pos[1], can_attack)
+                self.selected_unit["hasMoved"] = self.ACTION_STATE_MOVED_NEED_TO_CONFRIM
                 self.message = f"{self.selected_unit['unitId']} moved to ({grid_x},{grid_y})"
-                # Attack adjacent enemy
-                self.check_for_adjacent_attack(self.selected_unit)
                 
-                # Deselect
-                self.selected_unit = None
                 self.reachable_tiles = []
             else:
-                # If user clicked a non-reachable tile, deselect
-                self.selected_unit = None
-                self.reachable_tiles = []
+                # If user clicked a non-reachable tile, no-op
                 self.message = "Invalid move or cancelled selection."
 
     def has_adjacent_enemy(self, unit):
@@ -214,6 +223,14 @@ class GameManager:
                 return True
         return False
 
+    def handle_stay_action(self):
+        # self.selected_unit action is completed
+        # self.selected_unit["hasMoved"] = self.ACTION_STATE_DONE
+        self.selected_unit = None
+        self.reachable_tiles = []
+        self.context_menu["visible"] = False
+        self.message = "Stay action completed."
+
     def start_attack_mode(self):
         """
         Called when user clicks "Attack" in the popup.
@@ -221,7 +238,7 @@ class GameManager:
         """
         if not self.selected_unit:
             return
-        self.isAttacking = True
+        self.selected_unit["hasMoved"] = self.ACTION_STATE_ATTACK_NEED_TO_CONFRIM
         self.attackable_tiles = []
         x, y = self.selected_unit["x"], self.selected_unit["y"]
         # find adjacent enemy
@@ -262,20 +279,6 @@ class GameManager:
                             queue.append((nx, ny, dist+1))
         return reachable
 
-    # -- NEW: if there's an adjacent enemy, do a simple attack
-    def check_for_adjacent_attack(self, player_unit):
-        px, py = player_unit["x"], player_unit["y"]
-        # find any enemy units in the 4 adjacent tiles
-        adjacent_coords = [(px+1, py), (px-1, py), (px, py+1), (px, py-1)]
-        for ex, ey in adjacent_coords:
-            enemy = self.get_unit_at(ex, ey)
-            if enemy and enemy["side"] == "enemy":
-                # Attack sequence (very simple)
-                self.attack_unit(player_unit, enemy)
-                # If the enemy is still alive, they might retaliate
-                if enemy["HP"] > 0:
-                    self.attack_unit(enemy, player_unit)
-
     def attack_unit(self, attacker, defender):
         """Simple damage formula: defender.HP -= attacker.attack. If HP <= 0, remove them."""
         defender["HP"] -= attacker["attack"]
@@ -299,7 +302,7 @@ class GameManager:
         for the current turn.
         """
         for u in self.grid_units:
-            if u["side"] == "player" and u["hasMoved"] == False:
+            if u["side"] == "player" and u["hasMoved"] == self.ACTION_STATE_DONE:
                 return False
         return True
 
