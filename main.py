@@ -50,6 +50,9 @@ def main():
     # We'll keep a temporary GameState reference so that once we pick a save/new game, we create manager
     game_state_obj = None
     
+    # Camera position
+    camera_x = 0
+    camera_y = 0
 
     running = True
     while running:
@@ -96,9 +99,9 @@ def main():
                     # Press 'g' to switch to GRID mode (the map campaign)
                     elif event.key == pygame.K_g:
                         manager.start_grid_mode()  # prepare the grid data
-                        # Get window size from grid config, default to 800x600 if not specified
-                        grid_width = min(800, manager.current_grid_data.get("width")*TILE_SIZE)
-                        grid_height = min(600, manager.current_grid_data.get("height")*TILE_SIZE + STATUS_BAR_HEIGHT)
+                        # Get window size from grid config, default to 640x480 if not specified
+                        grid_width = min(640, manager.current_grid_data.get("width")*TILE_SIZE)
+                        grid_height = min(480, manager.current_grid_data.get("height")*TILE_SIZE + STATUS_BAR_HEIGHT)
                         screen = pygame.display.set_mode((grid_width, grid_height))
                         mode = MODE_GRID
 
@@ -120,13 +123,27 @@ def main():
                         if event.unicode.isprintable():
                             typed_save_name += event.unicode
 
-            # --- GRID Mode: show the 15x15 grid + units ---
+            # --- GRID Mode: show the grid in camera view + units ---
             elif mode == MODE_GRID and manager is not None:
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
                         # Return to PLAY mode and restore default window size
                         screen = pygame.display.set_mode(default_size)
                         mode = MODE_PLAY
+                    # Add camera movement controls
+                    elif event.key in (pygame.K_LEFT, pygame.K_RIGHT, pygame.K_UP, pygame.K_DOWN):
+                        grid_width = manager.current_grid_data.get("width") * TILE_SIZE
+                        grid_height = manager.current_grid_data.get("height") * TILE_SIZE
+                        screen_width, screen_height = screen.get_size()
+                        
+                        if event.key == pygame.K_LEFT:
+                            camera_x = max(0, camera_x - TILE_SIZE)
+                        elif event.key == pygame.K_RIGHT:
+                            camera_x = min(grid_width - screen_width, camera_x + TILE_SIZE)
+                        elif event.key == pygame.K_UP:
+                            camera_y = max(0, camera_y - TILE_SIZE)
+                        elif event.key == pygame.K_DOWN:
+                            camera_y = min(grid_height - screen_height, camera_y + TILE_SIZE)
                 elif event.type == pygame.MOUSEBUTTONDOWN:
                     if event.button == 1:
                         mouse_x, mouse_y = event.pos
@@ -141,7 +158,7 @@ def main():
                                     continue
 
                             # Otherwise it's a grid click
-                            manager.handle_grid_click((mouse_x, mouse_y))
+                            manager.handle_grid_click((mouse_x + camera_x, mouse_y + camera_y))
                         # check game victory or defeat condition
                         if manager.check_chapter_completion():
                             manager.on_chapter_victory()
@@ -166,8 +183,8 @@ def main():
                     mouse_x, mouse_y = event.pos
                     if mouse_y > STATUS_BAR_HEIGHT:
                         # Convert pixel coordinates to grid coordinates
-                        grid_x = mouse_x // TILE_SIZE
-                        grid_y = (mouse_y - STATUS_BAR_HEIGHT) // TILE_SIZE
+                        grid_x = (mouse_x + camera_x) // TILE_SIZE
+                        grid_y = (mouse_y + camera_y - STATUS_BAR_HEIGHT) // TILE_SIZE
                         # Get unit at hovered position
                         hovered_unit = manager.get_unit_at(grid_x, grid_y)
                         if hovered_unit:
@@ -193,7 +210,7 @@ def main():
         elif mode == MODE_SAVE:
             draw_save_prompt(screen, font, typed_save_name)
         elif mode == MODE_GRID:
-            draw_grid_mode(screen, manager, font)
+            draw_grid_mode(screen, manager, font, camera_x, camera_y)
             draw_popup_menu(screen, manager, font)
 
         # 2) Draw the status bar (always on top)
@@ -230,64 +247,65 @@ def draw_save_prompt(screen, font, typed_name):
     typed_surf = font.render("Filename: " + typed_name, True, YELLOW)
     screen.blit(typed_surf, (50, y_offset))
 
-def draw_grid_mode(screen, manager, font):
+def draw_grid_mode(screen, manager, font, camera_x, camera_y):
     """
-    Renders the grid campaign.
-    - Draw the background image if loaded
-    - Draw each unit at its (x,y) position
+    Renders the grid campaign with scrolling support.
     """
-    # The manager has a .grid_background (a loaded pygame.Surface or None)
-    # The manager also has .grid_data for the current chapter
     grid_data = manager.current_grid_data
     if not grid_data:
-        # fallback message if no grid data
         text_surf = font.render("No grid data available!", True, RED)
         screen.blit(text_surf, (50, 50))
         return
 
     # Draw background
     if manager.grid_background:
-        # Scale background to fill screen
+        # Scale background to full grid size
+        grid_width = grid_data.get("width", 0) * TILE_SIZE
+        grid_height = grid_data.get("height", 0) * TILE_SIZE
+        scaled_bg = pygame.transform.scale(manager.grid_background, (grid_width, grid_height))
+        
+        # Create a subsurface of the visible portion
         screen_width, screen_height = screen.get_size()
-        scaled_bg = pygame.transform.scale(manager.grid_background, (screen_width, screen_height))
-        screen.blit(scaled_bg, (0, 0))
+        visible_rect = pygame.Rect(camera_x, camera_y, screen_width, screen_height - STATUS_BAR_HEIGHT)
+        try:
+            visible_bg = scaled_bg.subsurface(visible_rect)
+            screen.blit(visible_bg, (0, STATUS_BAR_HEIGHT))
+        except ValueError:
+            # Handle case where camera might be partially out of bounds
+            screen.fill((34, 139, 34))  # Fallback to green background
     else:
-        # fallback, fill with dark green
         screen.fill((34, 139, 34))
 
-    tile_size = 32  # each cell is 32x32
-    # You can scale or position the grid as needed in your design
-    
-
-    # 1. Draw each unit
-    for unit in manager.grid_units:  
-        # unit = {"unitId":..., "x":..., "y":..., "side": "player" or "enemy"}
-        x_px = unit["x"] * tile_size
-        y_px = unit["y"] * tile_size + STATUS_BAR_HEIGHT
-        if unit["side"] == "player":
-            if unit["hasMoved"] == manager.ACTION_STATE_NOT_YET:
-                color = (0, 255, 0)
+    # Draw each unit (adjusted for camera position)
+    for unit in manager.grid_units:
+        x_px = (unit["x"] * TILE_SIZE) - camera_x
+        y_px = (unit["y"] * TILE_SIZE) + STATUS_BAR_HEIGHT - camera_y
+        
+        # Only draw if unit is visible in viewport
+        screen_width, screen_height = screen.get_size()
+        if (0 <= x_px < screen_width and STATUS_BAR_HEIGHT <= y_px < screen_height):
+            if unit["side"] == "player":
+                color = (0, 255, 0) if unit["hasMoved"] == manager.ACTION_STATE_NOT_YET else (1, 150, 32)
             else:
-                color = (1, 150, 32)            
-        else:
-            if unit["hasMoved"] == manager.ACTION_STATE_NOT_YET:
-                color = (255, 0, 0)
-            else:
-                color = (139, 0, 0)
-        pygame.draw.rect(screen, color, (x_px, y_px, tile_size, tile_size))
+                color = (255, 0, 0) if unit["hasMoved"] == manager.ACTION_STATE_NOT_YET else (139, 0, 0)
+            pygame.draw.rect(screen, color, (x_px, y_px, TILE_SIZE, TILE_SIZE))
 
-    # 2. Highlight reachable tiles and attackable tiles
-    highlight_color = (0, 0, 255, 80)  # RGBA with some alpha
-    attack_highlight_color = (150, 0, 0, 80)  # RGBA with some alpha
-    highlight_surf = pygame.Surface((tile_size, tile_size), pygame.SRCALPHA)
-    highlight_surf.fill(highlight_color)
+    # Draw reachable and attackable tiles (adjusted for camera)
+    highlight_surf = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA)
+    highlight_surf.fill((0, 0, 255, 80))
     for (rx, ry) in manager.reachable_tiles:
-        screen.blit(highlight_surf, (rx * tile_size, ry * tile_size + STATUS_BAR_HEIGHT))
+        x_px = (rx * TILE_SIZE) - camera_x
+        y_px = (ry * TILE_SIZE) + STATUS_BAR_HEIGHT - camera_y
+        if (0 <= x_px < screen_width and STATUS_BAR_HEIGHT <= y_px < screen_height):
+            screen.blit(highlight_surf, (x_px, y_px))
 
-    attack_highlight_surf = pygame.Surface((tile_size, tile_size), pygame.SRCALPHA)
-    attack_highlight_surf.fill(attack_highlight_color)
+    attack_highlight_surf = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA)
+    attack_highlight_surf.fill((150, 0, 0, 80))
     for (rx, ry) in manager.attackable_tiles_drawing:
-        screen.blit(attack_highlight_surf, (rx * tile_size, ry * tile_size + STATUS_BAR_HEIGHT))
+        x_px = (rx * TILE_SIZE) - camera_x
+        y_px = (ry * TILE_SIZE) + STATUS_BAR_HEIGHT - camera_y
+        if (0 <= x_px < screen_width and STATUS_BAR_HEIGHT <= y_px < screen_height):
+            screen.blit(attack_highlight_surf, (x_px, y_px))
 
     # Overlay some textual info: e.g. "Press ESC to exit"
     msg = f"Chapter {manager.game_state.currentChapterId} Grid - Max Turns {grid_data.get('maxTurns', 0)}"
