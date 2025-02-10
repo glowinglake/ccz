@@ -23,6 +23,9 @@ def main():
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption("War Chess in Python - In-Game Menu + Grid")
 
+    # Store the default window size
+    default_size = (SCREEN_WIDTH, SCREEN_HEIGHT)
+
     # We'll load the chapters config once (the chapters themselves don't change).
     chapters_data = load_chapters_config("chapters")  # Now points to a directory
 
@@ -93,6 +96,10 @@ def main():
                     # Press 'g' to switch to GRID mode (the map campaign)
                     elif event.key == pygame.K_g:
                         manager.start_grid_mode()  # prepare the grid data
+                        # Get window size from grid config, default to 800x600 if not specified
+                        grid_width = min(800, manager.current_grid_data.get("width")*TILE_SIZE)
+                        grid_height = min(600, manager.current_grid_data.get("height")*TILE_SIZE + STATUS_BAR_HEIGHT)
+                        screen = pygame.display.set_mode((grid_width, grid_height))
                         mode = MODE_GRID
 
             # --- SAVE Mode: type a filename for your save ---
@@ -117,7 +124,8 @@ def main():
             elif mode == MODE_GRID and manager is not None:
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
-                        # Return to PLAY mode
+                        # Return to PLAY mode and restore default window size
+                        screen = pygame.display.set_mode(default_size)
                         mode = MODE_PLAY
                 elif event.type == pygame.MOUSEBUTTONDOWN:
                     if event.button == 1:
@@ -159,7 +167,7 @@ def main():
                     if mouse_y > STATUS_BAR_HEIGHT:
                         # Convert pixel coordinates to grid coordinates
                         grid_x = mouse_x // TILE_SIZE
-                        grid_y = mouse_y // TILE_SIZE
+                        grid_y = (mouse_y - STATUS_BAR_HEIGHT) // TILE_SIZE
                         # Get unit at hovered position
                         hovered_unit = manager.get_unit_at(grid_x, grid_y)
                         if hovered_unit:
@@ -255,7 +263,7 @@ def draw_grid_mode(screen, manager, font):
     for unit in manager.grid_units:  
         # unit = {"unitId":..., "x":..., "y":..., "side": "player" or "enemy"}
         x_px = unit["x"] * tile_size
-        y_px = unit["y"] * tile_size
+        y_px = unit["y"] * tile_size + STATUS_BAR_HEIGHT
         if unit["side"] == "player":
             if unit["hasMoved"] == manager.ACTION_STATE_NOT_YET:
                 color = (0, 255, 0)
@@ -274,12 +282,12 @@ def draw_grid_mode(screen, manager, font):
     highlight_surf = pygame.Surface((tile_size, tile_size), pygame.SRCALPHA)
     highlight_surf.fill(highlight_color)
     for (rx, ry) in manager.reachable_tiles:
-        screen.blit(highlight_surf, (rx * tile_size, ry * tile_size))
+        screen.blit(highlight_surf, (rx * tile_size, ry * tile_size + STATUS_BAR_HEIGHT))
 
     attack_highlight_surf = pygame.Surface((tile_size, tile_size), pygame.SRCALPHA)
     attack_highlight_surf.fill(attack_highlight_color)
     for (rx, ry) in manager.attackable_tiles_drawing:
-        screen.blit(attack_highlight_surf, (rx * tile_size, ry * tile_size))
+        screen.blit(attack_highlight_surf, (rx * tile_size, ry * tile_size + STATUS_BAR_HEIGHT))
 
     # Overlay some textual info: e.g. "Press ESC to exit"
     msg = f"Chapter {manager.game_state.currentChapterId} Grid - Max Turns {grid_data.get('maxTurns', 0)}"

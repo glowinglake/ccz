@@ -4,7 +4,7 @@
     "description": "First test chapter",
     "grid": {
       "width": 15,
-      "height": 15,
+      "height": 7,
       "bgImage": "assets/chapter1_bg.jpeg",
       "maxTurns": 10,
       "playerUnits": [

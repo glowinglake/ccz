@@ -2,6 +2,7 @@ import pygame
 import os
 from collections import deque
 from .chapter_manager import get_chapter_by_id
+from .constants import STATUS_BAR_HEIGHT
 
 class GameManager:
     def __init__(self, chapters_data, game_state):
@@ -153,7 +154,7 @@ class GameManager:
     def handle_grid_click(self, mouse_pos):
         # Convert pixel to grid coords
         grid_x = mouse_pos[0] // self.tile_size
-        grid_y = mouse_pos[1] // self.tile_size
+        grid_y = (mouse_pos[1] - STATUS_BAR_HEIGHT) // self.tile_size
         
         # If the popup menu was open, close it (unless user clicked inside it - see main.py)
         if self.context_menu["visible"]:
@@ -267,8 +268,8 @@ class GameManager:
         Simple BFS ignoring obstacles or blocked tiles:
         Returns a list of (x,y) within 'move_range' steps from start_xy.
         """
-        w = self.current_grid_data.get("width", 15)
-        h = self.current_grid_data.get("height", 15)
+        w = self.current_grid_data.get("width")
+        h = self.current_grid_data.get("height")
         visited = set()
         queue = deque()
         queue.append((start_xy[0], start_xy[1], 0))  # (x, y, distance)
