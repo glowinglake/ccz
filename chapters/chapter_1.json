@@ -1,0 +1,56 @@
+{
+    "chapterId": 1,
+    "title": "Prologue",
+    "description": "First test chapter",
+    "grid": {
+      "width": 15,
+      "height": 15,
+      "bgImage": "assets/chapter1_bg.jpeg",
+      "maxTurns": 10,
+      "playerUnits": [
+        {
+          "unitId": "hero1",
+          "x": 2,
+          "y": 2
+        },
+        {
+          "unitId": "hero2",
+          "x": 3,
+          "y": 2
+        }
+      ],
+      "enemyUnits": [
+        {
+          "unitId": "enemy1",
+          "x": 8,
+          "y": 4,
+          "type": "archer",
+          "level": 1,
+          "HP": 15,
+          "MP": 0,
+          "attack": 5,
+          "defense": 2,
+          "spirit": 1
+        }
+      ]
+    },
+    "events": [
+      {
+        "eventId": "startIntro",
+        "triggerPoint": "onStart",
+        "dialogue": [
+          { "speaker": "Narrator", "text": "This is the beginning..." }
+        ],
+        "actions": []
+      },
+      {
+        "eventId": "winChapter1",
+        "triggerPoint": "onVictory",
+        "actions": [
+          { "type": "addCoins", "amount": 50 },
+          { "type": "unlockChapter", "chapterId": 2 }
+        ]
+      }
+    ],
+    "defaultNextChapterId": 2
+  }

@@ -26,7 +26,7 @@ def main():
     pygame.display.set_caption("War Chess in Python - In-Game Menu + Grid")
 
     # We'll load the chapters config once (the chapters themselves don't change).
-    chapters_data = load_chapters_config("chaptersConfig.json")
+    chapters_data = load_chapters_config("chapters")  # Now points to a directory
 
     # We'll keep a reference to our GameManager, but create it only after user chooses a save.
     manager = None
