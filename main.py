@@ -3,15 +3,13 @@ import pygame
 from gameEngine.chapter_manager import load_chapters_config
 from gameEngine.state_manager import load_game_state, save_game_state, GameState
 from gameEngine.game_manager import GameManager
+from gameEngine.constants import *
 
 # Possible "modes" of the game
 MODE_MENU = "MENU"   # Choose a save or start new
 MODE_PLAY = "PLAY"   # Normal gameplay (lobby/overworld style)
 MODE_SAVE = "SAVE"   # Typing a save filename
 MODE_GRID = "GRID"   # The grid-based campaign view
-
-STATUS_BAR_HEIGHT = 70  # NEW
-button_rect = (450, 20, 120, 30)
 
 def list_save_files(folder="savedStates"):
     """Return a list of all JSON files in savedStates/."""
@@ -22,7 +20,7 @@ def list_save_files(folder="savedStates"):
 
 def main():
     pygame.init()
-    screen = pygame.display.set_mode((640, 320))
+    screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption("War Chess in Python - In-Game Menu + Grid")
 
     # We'll load the chapters config once (the chapters themselves don't change).
@@ -32,7 +30,7 @@ def main():
     manager = None
 
     # UI state
-    font = pygame.font.SysFont(None, 32)
+    font = pygame.font.SysFont(None, FONT_SIZE)
     clock = pygame.time.Clock()
 
     # Start in MENU mode
@@ -52,7 +50,7 @@ def main():
 
     running = True
     while running:
-        clock.tick(60)
+        clock.tick(300)
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
@@ -160,8 +158,8 @@ def main():
                     mouse_x, mouse_y = event.pos
                     if mouse_y > STATUS_BAR_HEIGHT:
                         # Convert pixel coordinates to grid coordinates
-                        grid_x = mouse_x // manager.tile_size
-                        grid_y = mouse_y // manager.tile_size
+                        grid_x = mouse_x // TILE_SIZE
+                        grid_y = mouse_y // TILE_SIZE
                         # Get unit at hovered position
                         hovered_unit = manager.get_unit_at(grid_x, grid_y)
                         if hovered_unit:
@@ -177,7 +175,7 @@ def main():
                             manager.message = ""
 
         # --- RENDER / DRAW ---
-        screen.fill((0, 0, 0))
+        screen.fill(BLACK)
 
         if mode == MODE_MENU:
             draw_menu(screen, font, menu_options, selected_index)
@@ -198,15 +196,15 @@ def main():
 
 def draw_menu(screen, font, options, selected_index):
     """Draw a simple vertical menu (saves + 'New Game')."""
-    title_surf = font.render("Select a Save or Start New Game", True, (255, 255, 255))
-    screen.blit(title_surf, (50, 50))
+    title_surf = font.render("Select a Save or Start New Game", True, WHITE)
+    screen.blit(title_surf, (MENU_TITLE_X, MENU_START_Y))
 
-    y_offset = 120
+    y_offset = MENU_OPTION_Y
     for i, opt in enumerate(options):
-        color = (255, 255, 0) if i == selected_index else (200, 200, 200)
+        color = YELLOW if i == selected_index else LIGHT_GRAY
         text_surf = font.render(opt, True, color)
-        screen.blit(text_surf, (80, y_offset))
-        y_offset += 40
+        screen.blit(text_surf, (MENU_OPTION_X, y_offset))
+        y_offset += MENU_OPTION_SPACING
 
 def draw_save_prompt(screen, font, typed_name):
     """Draw the UI for typing a save filename."""
@@ -216,12 +214,12 @@ def draw_save_prompt(screen, font, typed_name):
     ]
     y_offset = 50
     for line in instructions:
-        surf = font.render(line, True, (255, 255, 255))
+        surf = font.render(line, True, WHITE)
         screen.blit(surf, (50, y_offset))
         y_offset += 40
 
     # Show the typed filename
-    typed_surf = font.render("Filename: " + typed_name, True, (255, 255, 0))
+    typed_surf = font.render("Filename: " + typed_name, True, YELLOW)
     screen.blit(typed_surf, (50, y_offset))
 
 def draw_grid_mode(screen, manager, font):
@@ -235,7 +233,7 @@ def draw_grid_mode(screen, manager, font):
     grid_data = manager.current_grid_data
     if not grid_data:
         # fallback message if no grid data
-        text_surf = font.render("No grid data available!", True, (255, 0, 0))
+        text_surf = font.render("No grid data available!", True, RED)
         screen.blit(text_surf, (50, 50))
         return
 
@@ -285,10 +283,10 @@ def draw_grid_mode(screen, manager, font):
 
     # Overlay some textual info: e.g. "Press ESC to exit"
     msg = f"Chapter {manager.game_state.currentChapterId} Grid - Max Turns {grid_data.get('maxTurns', 0)}"
-    text_surf = font.render(msg, True, (255, 255, 255))
+    text_surf = font.render(msg, True, WHITE)
     screen.blit(text_surf, (10, 10))
 
-    help_surf = font.render("Press ESC to exit grid mode", True, (255, 255, 255))
+    help_surf = font.render("Press ESC to exit grid mode", True, WHITE)
     screen.blit(help_surf, (10, 40))
 
 
@@ -301,138 +299,112 @@ def draw_status_bar(screen, font, manager, mode):
       - if grid mode: "Turn X / Y", "all units done" if applicable
       - an "End Turn" button if in grid mode
     """
-    bar_rect = (0, 0, 640, STATUS_BAR_HEIGHT)
-    pygame.draw.rect(screen, (50, 50, 50), bar_rect)  # dark gray
+    bar_rect = (0, 0, SCREEN_WIDTH, STATUS_BAR_HEIGHT)
+    pygame.draw.rect(screen, DARK_GRAY, bar_rect)
 
     if manager is None:
-        # Possibly just show "Menu mode" or something
         text = f"Game Mode: {mode}"
-        surf = font.render(text, True, (255, 255, 255))
+        surf = font.render(text, True, WHITE)
         screen.blit(surf, (10, 10))
         return
 
-    # 1) Left side: Game Mode
+    # Left side: Game Mode
     mode_text = f"Game Mode: {mode}"
-    surf_mode = font.render(mode_text, True, (255, 255, 255))
+    surf_mode = font.render(mode_text, True, WHITE)
     screen.blit(surf_mode, (10, 10))
 
-    # 2) Middle: manager.message
+    # Middle: manager.message
     msg = manager.message
-    surf_msg = font.render(msg, True, (255, 255, 0))
+    surf_msg = font.render(msg, True, YELLOW)
     screen.blit(surf_msg, (10, 40))
 
-    # 3) If we're in GRID mode, show turn info & "End Turn" button
     if mode == MODE_GRID:
         turn_text = f"Turn {manager.grid_currentTurn}/{manager.grid_maxTurns}"
         if not manager.isPlayerTurn:
             turn_text += " (Enemy Turn)"
         else:
             turn_text += " (Player Turn)"
-        surf_turn = font.render(turn_text, True, (255, 255, 255))
+        surf_turn = font.render(turn_text, True, WHITE)
         screen.blit(surf_turn, (250, 10))
 
-        # "all units done"
         if manager.isPlayerTurn and manager.all_player_units_done():
             done_text = "All player's units are done with actions!"
-            surf_done = font.render(done_text, True, (255, 255, 0))
+            surf_done = font.render(done_text, True, YELLOW)
             screen.blit(surf_done, (250, 40))
 
-        # Draw "End Turn" button
-        pygame.draw.rect(screen, (100, 100, 200), button_rect)  # some color
-        btn_label = font.render("End Turn", True, (255, 255, 255))
-        # center text
-        screen.blit(btn_label, (button_rect[0]+10, button_rect[1]+5))
+        pygame.draw.rect(screen, MEDIUM_GRAY, END_TURN_BUTTON)
+        btn_label = font.render("End Turn", True, WHITE)
+        screen.blit(btn_label, (END_TURN_BUTTON[0]+10, END_TURN_BUTTON[1]+5))
 
 def handle_status_bar_click(mouse_x, mouse_y, manager):
     """
     Check if user clicked on the "End Turn" button in the status bar.
     If so, call manager.end_turn().
     """
-    bx, by, bw, bh = button_rect
+    bx, by, bw, bh = END_TURN_BUTTON
     if bx <= mouse_x <= bx + bw and by <= mouse_y <= by + bh:
         manager.end_turn()
 
 def clicked_popup_menu(screen, manager, mx, my):
-    """
-    Check if the user clicked inside the small pop-up menu,
-    and handle 'Attack' or 'Cast'.
-    Returns True if we consumed the click, False otherwise.
-    """
     if not manager.context_menu["visible"]:
         return False
 
-    # Suppose we define the menu 80x70 in size
-    menu_w, menu_h = 80, 70
     px, py = manager.context_menu["x"], manager.context_menu["y"]
 
     # Adjust position if too close to screen edges
     screen_w, screen_h = screen.get_size()
-    if px + menu_w > screen_w:
-        px = screen_w - menu_w
-    if py + menu_h > screen_h:
-        py = screen_h - menu_h
+    if px + POPUP_MENU_WIDTH > screen_w:
+        px = screen_w - POPUP_MENU_WIDTH
+    if py + POPUP_MENU_HEIGHT > screen_h:
+        py = screen_h - POPUP_MENU_HEIGHT
 
-    if not (px <= mx <= px+menu_w and py <= my <= py+menu_h):
-        return False  # clicked outside the menu
+    if not (px <= mx <= px + POPUP_MENU_WIDTH and py <= my <= py + POPUP_MENU_HEIGHT):
+        return False
 
-    # Inside the menu. Let's define two clickable "slots":
-    # Attack (top half) and Cast (bottom half)
-    # top half: (px,py)->(px+80, py+25)
-    # bottom half: (px,py+25)->(px+80, py+50)
-
-    # Attack is only enabled if manager.context_menu["attackEnabled"] == True
-    if py <= my < py+25:
+    if py <= my < py + POPUP_OPTION_HEIGHT:
         # Attack area
         if manager.context_menu["attackEnabled"]:
-            # Start attack mode
             manager.start_attack_mode()
         else:
             manager.message = "Attack is disabled."
-    elif py+25 <= my < py+50:
-        # Cast area - not implemented
+    elif py + POPUP_OPTION_HEIGHT <= my < py + (POPUP_OPTION_HEIGHT * 2):
+        # Cast area
         manager.message = "Cast action not implemented."
     else:
-        # Stay area - not implemented
-        # manager.message = "Stay action not implemented."
         manager.handle_stay_action()
 
-    # Hide menu after a choice
     manager.context_menu["visible"] = False
     return True
 
 def draw_popup_menu(screen, manager, font):
     if not manager.context_menu["visible"]:
         return
-    """
-    Renders the small pop-up at manager.context_menu's x,y.
-    'Attack' (top) is grey if attackEnabled=False, 'Cast' (bottom).
-    """
+
     px = manager.context_menu["x"]
     py = manager.context_menu["y"]
-    menu_w, menu_h = 80, 70
-
+    
     # Adjust position if too close to screen edges
     screen_w, screen_h = screen.get_size()
-    if px + menu_w > screen_w:
-        px = screen_w - menu_w
-    if py + menu_h > screen_h:
-        py = screen_h - menu_h
+    if px + POPUP_MENU_WIDTH > screen_w:
+        px = screen_w - POPUP_MENU_WIDTH
+    if py + POPUP_MENU_HEIGHT > screen_h:
+        py = screen_h - POPUP_MENU_HEIGHT
     
     # Draw background
-    pygame.draw.rect(screen, (60,60,60), (px, py, menu_w, menu_h))
+    pygame.draw.rect(screen, POPUP_BG_COLOR, (px, py, POPUP_MENU_WIDTH, POPUP_MENU_HEIGHT))
 
     # Attack option
-    attack_color = (200,200,200) if manager.context_menu["attackEnabled"] else (100,100,100)
+    attack_color = LIGHT_GRAY if manager.context_menu["attackEnabled"] else MEDIUM_GRAY
     attack_text = font.render("Attack", True, attack_color)
-    screen.blit(attack_text, (px+10, py+5))
+    screen.blit(attack_text, (px + POPUP_TEXT_PADDING_X, py + POPUP_TEXT_PADDING_Y))
 
-    # Cast option (just a placeholder)
-    cast_text = font.render("Cast", True, (200,200,200))
-    screen.blit(cast_text, (px+10, py+30))
+    # Cast option
+    cast_text = font.render("Cast", True, LIGHT_GRAY)
+    screen.blit(cast_text, (px + POPUP_TEXT_PADDING_X, py + POPUP_CAST_Y_OFFSET))
 
-    # Stay option (just a placeholder)
-    stay_text = font.render("Stay", True, (200,200,200))
-    screen.blit(stay_text, (px+10, py+50))
+    # Stay option
+    stay_text = font.render("Stay", True, LIGHT_GRAY)
+    screen.blit(stay_text, (px + POPUP_TEXT_PADDING_X, py + POPUP_STAY_Y_OFFSET))
 
 if __name__ == "__main__":
     main()
